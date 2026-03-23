@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Inventario de Vehículos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:30px 16px}
+  h1{font-size:1.4rem;font-weight:700;color:#1a1a2e;margin-bottom:4px;text-align:center}
+  .subtitle{font-size:.85rem;color:#6b7280;margin-bottom:28px;text-align:center}
+  .progress-wrap{width:100%;max-width:620px;margin-bottom:28px}
+  .progress-labels{display:flex;justify-content:space-between;margin-bottom:8px}
+  .progress-labels span{font-size:.72rem;color:#6b7280;text-align:center;flex:1}
+  .progress-labels span.active{color:#2563eb;font-weight:600}
+  .progress-labels span.done{color:#16a34a;font-weight:600}
+  .progress-bar{height:6px;background:#e5e7eb;border-radius:999px;overflow:hidden}
+  .progress-fill{height:100%;background:linear-gradient(90deg,#2563eb,#3b82f6);border-radius:999px;transition:width .4s ease}
+  .card{background:#fff;border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,.07);padding:32px;width:100%;max-width:620px}
+  .step-header{margin-bottom:24px}
+  .step-num{font-size:.75rem;color:#2563eb;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .step-title{font-size:1.2rem;font-weight:700;color:#1a1a2e;margin-top:2px}
+  .step-desc{font-size:.85rem;color:#6b7280;margin-top:4px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid.full{grid-template-columns:1fr}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:.8rem;font-weight:600;color:#374151}
+  .field input,.field select,.field textarea{border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;font-size:.9rem;color:#1a1a2e;outline:none;transition:border-color .2s;background:#fafafa;font-family:inherit}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:#2563eb;background:#fff}
+  .field textarea{resize:vertical;min-height:80px}
+  .field .err{font-size:.75rem;color:#dc2626;display:none}
+  .field.invalid input,.field.invalid select,.field.invalid textarea{border-color:#dc2626}
+  .field.invalid .err{display:block}
+  .actions{display:flex;justify-content:space-between;margin-top:28px;gap:12px}
+  .btn{padding:11px 26px;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+  .btn-primary{background:#2563eb;color:#fff}
+  .btn-primary:hover{background:#1d4ed8}
+  .btn-secondary{background:#f3f4f6;color:#374151}
+  .btn-secondary:hover{background:#e5e7eb}
+  .btn-success{background:#16a34a;color:#fff;width:100%}
+  .btn-success:hover{background:#15803d}
+  .summary-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:16px}
+  .summary-table tr:nth-child(even){background:#f9fafb}
+  .summary-table td{padding:8px 10px;border-bottom:1px solid #f0f0f0}
+  .summary-table td:first-child{font-weight:600;color:#374151;width:45%}
+  .summary-table td:last-child{color:#1a1a2e}
+  .section-label{font-size:.75rem;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.07em;padding:10px 10px 4px;background:#eff6ff}
+  .done-icon{text-align:center;font-size:3rem;margin-bottom:8px}
+  @media(max-width:480px){.grid{grid-template-columns:1fr}.card{padding:20px}}
+</style>
+</head>
+<body>
+<h1>🚗 Inventario de Vehículos</h1>
+<p class="subtitle">Completá el formulario paso a paso</p>
+
+<div class="progress-wrap">
+  <div class="progress-labels" id="prog-labels"></div>
+  <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+</div>
+
+<div class="card" id="card"></div>
+
+<script>
+const STEPS = [
+  {
+    num:"Paso 1 de 5", title:"Datos del Vehículo", desc:"Información básica del vehículo a registrar.",
+    fields:[
+      {id:"tipo",label:"Tipo de vehículo",type:"select",opts:["Automóvil","Camioneta","SUV","Moto","Camión","Utilitario","Bus/Minibus","Otro"],req:true},
+      {id:"marca",label:"Marca",type:"text",ph:"Ej: Toyota",req:true},
+      {id:"modelo",label:"Modelo",type:"text",ph:"Ej: Hilux",req:true},
+      {id:"anio",label:"Año",type:"number",ph:"Ej: 2021",req:true,min:1900,max:2026},
+      {id:"patente",label:"Dominio / Patente",type:"text",ph:"Ej: AB 123 CD",req:true},
+      {id:"color",label:"Color",type:"text",ph:"Ej: Blanco",req:false},
+    ]
+  },
+  {
+    num:"Paso 2 de 5", title:"Estado y Kilometraje", desc:"Condición actual y uso del vehículo.",
+    fields:[
+      {id:"km",label:"Kilometraje",type:"number",ph:"Ej: 85000",req:true,min:0},
+      {id:"estado",label:"Estado general",type:"select",opts:["Excelente","Muy bueno","Bueno","Regular","Para reparar"],req:true},
+      {id:"combustible",label:"Combustible",type:"select",opts:["Nafta","Diesel","GNC","Eléctrico","Híbrido","Otro"],req:false},
+      {id:"transmision",label:"Transmisión",type:"select",opts:["Manual","Automática","CVT"],req:false},
+      {id:"obs",label:"Observaciones",type:"textarea",ph:"Descripción de daños, accesorios o detalles relevantes...",req:false,full:true},
+    ]
+  },
+  {
+    num:"Paso 3 de 5", title:"Datos del Propietario / Responsable", desc:"Persona a cargo o titular del vehículo.",
+    fields:[
+      {id:"nombre",label:"Nombre y apellido",type:"text",ph:"Ej: Juan García",req:true,full:true},
+      {id:"doc",label:"DNI / CUIT",type:"text",ph:"Ej: 30-12345678-9",req:true},
+      {id:"telefono",label:"Teléfono",type:"text",ph:"Ej: +54 221 555-1234",req:false},
+      {id:"email",label:"Email",type:"email",ph:"Ej: juan@correo.com",req:false},
+    ]
+  },
+  {
+    num:"Paso 4 de 5", title:"Ubicación", desc:"¿Dónde se encuentra el vehículo?",
+    fields:[
+      {id:"direccion",label:"Dirección",type:"text",ph:"Ej: Av. 7 N° 1234",req:false,full:true},
+      {id:"ciudad",label:"Ciudad",type:"text",ph:"Ej: La Plata",req:true},
+      {id:"provincia",label:"Provincia",type:"text",ph:"Ej: Buenos Aires",req:true},
+      {id:"pais",label:"País",type:"text",ph:"Ej: Argentina",req:false},
+    ]
+  },
+  {
+    num:"Paso 5 de 5", title:"Valorización", desc:"Precio y condición comercial del vehículo.",
+    fields:[
+      {id:"precio",label:"Precio estimado",type:"number",ph:"Ej: 15000000",req:true,min:0},
+      {id:"moneda",label:"Moneda",type:"select",opts:["ARS","USD","EUR"],req:true},
+      {id:"condicion",label:"Condición de venta",type:"select",opts:["Disponible","Reservado","Vendido","No disponible"],req:true},
+      {id:"fecha",label:"Fecha de registro",type:"date",req:true},
+    ]
+  }
+];
+
+const LABELS = ["Vehículo","Estado","Propietario","Ubicación","Valorización"];
+const data = {};
+let cur = 0;
+
+function updateProgress(){
+  const pct = (cur/STEPS.length)*100;
+  document.getElementById('prog-fill').style.width = pct+'%';
+  const lbl = document.getElementById('prog-labels');
+  lbl.innerHTML = LABELS.map((l,i)=>`<span class="${i<cur?'done':i===cur?'active':''}">${i<cur?'✓ ':''} ${l}</span>`).join('');
+}
+
+function buildStep(){
+  const s = STEPS[cur];
+  const c = document.getElementById('card');
+  let html = `<div class="step-header"><div class="step-num">${s.num}</div><div class="step-title">${s.title}</div><div class="step-desc">${s.desc}</div></div>`;
+  html += `<div class="grid${s.fields.every(f=>f.full)?' full':''}">`;
+  s.fields.forEach(f=>{
+    const v = data[f.id]||'';
+    const cls = f.full?'field" style="grid-column:1/-1':'field';
+    html += `<div class="${cls}" id="wrap-${f.id}">`;
+    html += `<label for="${f.id}">${f.label}${f.req?' <span style="color:#dc2626">*</span>':''}</label>`;
+    if(f.type==='select'){
+      html += `<select id="${f.id}"><option value="">— Seleccioná —</option>${f.opts.map(o=>`<option value="${o}"${v===o?' selected':''}>${o}</option>`).join('')}</select>`;
+    } else if(f.type==='textarea'){
+      html += `<textarea id="${f.id}" placeholder="${f.ph||''}">${v}</textarea>`;
+    } else {
+      html += `<input type="${f.type}" id="${f.id}" placeholder="${f.ph||''}" value="${v}"${f.min!==undefined?` min="${f.min}"`:''}${f.max!==undefined?` max="${f.max}"`:''}/>`;
+    }
+    html += `<span class="err">Este campo es obligatorio.</span></div>`;
+  });
+  html += `</div>`;
+  html += `<div class="actions">`;
+  if(cur>0) html += `<button class="btn btn-secondary" onclick="goBack()">← Anterior</button>`;
+  else html += `<div></div>`;
+  html += `<button class="btn btn-primary" onclick="goNext()">Siguiente →</button>`;
+  html += `</div>`;
+  c.innerHTML = html;
+  if(cur===0) document.querySelector('.actions .btn-secondary')?.remove();
+}
+
+function saveStep(){
+  STEPS[cur].fields.forEach(f=>{
+    const el = document.getElementById(f.id);
+    if(el) data[f.id] = el.value;
+  });
+}
+
+function validate(){
+  let ok = true;
+  STEPS[cur].fields.forEach(f=>{
+    const el = document.getElementById(f.id);
+    const wrap = document.getElementById('wrap-'+f.id);
+    if(f.req && el && !el.value.trim()){
+      wrap.classList.add('invalid'); ok=false;
+    } else if(wrap){
+      wrap.classList.remove('invalid');
+    }
+  });
+  return ok;
+}
+
+function goNext(){
+  if(!validate()) return;
+  saveStep();
+  cur++;
+  if(cur===STEPS.length) buildSummary();
+  else { buildStep(); updateProgress(); window.scrollTo(0,0); }
+}
+
+function goBack(){
+  saveStep();
+  cur--;
+  buildStep();
+  updateProgress();
+  window.scrollTo(0,0);
+}
+
+function fmt(id){return data[id]||'—'}
+
+const FIELD_LABELS = {
+  tipo:"Tipo",marca:"Marca",modelo:"Modelo",anio:"Año",patente:"Dominio/Patente",color:"Color",
+  km:"Kilometraje",estado:"Estado",combustible:"Combustible",transmision:"Transmisión",obs:"Observaciones",
+  nombre:"Propietario",doc:"DNI/CUIT",telefono:"Teléfono",email:"Email",
+  direccion:"Dirección",ciudad:"Ciudad",provincia:"Provincia",pais:"País",
+  precio:"Precio",moneda:"Moneda",condicion:"Condición",fecha:"Fecha"
+};
+
+const SECTIONS = [
+  {label:"Datos del Vehículo",keys:["tipo","marca","modelo","anio","patente","color"]},
+  {label:"Estado y Kilometraje",keys:["km","estado","combustible","transmision","obs"]},
+  {label:"Propietario / Responsable",keys:["nombre","doc","telefono","email"]},
+  {label:"Ubicación",keys:["direccion","ciudad","provincia","pais"]},
+  {label:"Valorización",keys:["precio","moneda","condicion","fecha"]},
+];
+
+function buildSummary(){
+  document.getElementById('prog-fill').style.width='100%';
+  document.getElementById('prog-labels').innerHTML = LABELS.map(l=>`<span class="done">✓ ${l}</span>`).join('');
+  let rows = '';
+  SECTIONS.forEach(s=>{
+    rows += `<tr><td colspan="2" class="section-label">${s.label}</td></tr>`;
+    s.keys.forEach(k=>{ rows += `<tr><td>${FIELD_LABELS[k]}</td><td>${fmt(k)}</td></tr>`; });
+  });
+  document.getElementById('card').innerHTML = `
+    <div class="done-icon">✅</div>
+    <div class="step-header" style="text-align:center">
+      <div class="step-title">Resumen del Inventario</div>
+      <div class="step-desc">Revisá los datos antes de descargar.</div>
+    </div>
+    <table class="summary-table">${rows}</table>
+    <div class="actions" style="flex-direction:column;gap:10px;margin-top:24px">
+      <button class="btn btn-success" onclick="exportExcel()">⬇️ Descargar Excel</button>
+      <button class="btn btn-secondary" style="width:100%;text-align:center" onclick="restart()">＋ Registrar otro vehículo</button>
+    </div>
+    <div id="dl-msg" style="text-align:center;font-size:.8rem;color:#16a34a;margin-top:10px;display:none">¡Archivo descargado con éxito!</div>
+  `;
+  window.scrollTo(0,0);
+}
+
+function exportExcel(){
+  const rows = [["Campo","Valor"]];
+  SECTIONS.forEach(s=>{
+    rows.push([s.label.toUpperCase(),""]);
+    s.keys.forEach(k=>rows.push([FIELD_LABELS[k], fmt(k)]));
+    rows.push(["",""]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:30},{wch:40}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+  const fname = `inventario_${(data.marca||'vehiculo').replace(/\s/g,'_')}_${data.patente||Date.now()}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  const msg = document.getElementById('dl-msg');
+  if(msg){msg.style.display='block';setTimeout(()=>msg.style.display='none',3000);}
+}
+
+function restart(){
+  Object.keys(data).forEach(k=>delete data[k]);
+  cur=0; buildStep(); updateProgress();
+}
+
+updateProgress();
+buildStep();
+</script>
+</body>
+</html>
