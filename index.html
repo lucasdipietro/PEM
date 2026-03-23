@@ -224,12 +224,39 @@ function buildSummary(){
     </div>
     <table class="summary-table">${rows}</table>
     <div class="actions" style="flex-direction:column;gap:10px;margin-top:24px">
+      <button id="save-btn" class="btn" style="background:#0f766e;color:#fff;width:100%" onclick="saveToSheets()">☁️ Guardar en base de datos</button>
+      <div id="save-msg" style="text-align:center;font-size:.8rem;margin-top:6px;display:none"></div>
       <button class="btn btn-success" onclick="exportExcel()">⬇️ Descargar Excel</button>
       <button class="btn btn-secondary" style="width:100%;text-align:center" onclick="restart()">＋ Registrar otro vehículo</button>
     </div>
     <div id="dl-msg" style="text-align:center;font-size:.8rem;color:#16a34a;margin-top:10px;display:none">¡Archivo descargado con éxito!</div>
   `;
   window.scrollTo(0,0);
+}
+
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbzX71PXpQWFcgK_WH9OM7usbTgCnRZEr1T4ztnL7Q_e08pvkYgJwWEVNzbHbHB53mfQ/exec";
+
+async function saveToSheets(){
+  const btn = document.getElementById('save-btn');
+  const msg = document.getElementById('save-msg');
+  btn.disabled = true;
+  btn.textContent = '⏳ Guardando...';
+  try {
+    await fetch(SHEETS_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(data)
+    });
+    msg.style.color='#16a34a';
+    msg.textContent='✅ Vehículo guardado en la base de datos.';
+  } catch(e) {
+    msg.style.color='#dc2626';
+    msg.textContent='❌ Error al guardar. Verificá tu conexión.';
+    btn.disabled = false;
+    btn.textContent='☁️ Guardar en base de datos';
+  }
+  msg.style.display='block';
 }
 
 function exportExcel(){
